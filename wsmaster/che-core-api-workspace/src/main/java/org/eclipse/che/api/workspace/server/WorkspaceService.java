@@ -21,8 +21,9 @@ import static org.eclipse.che.api.workspace.server.DtoConverter.asDto;
 import static org.eclipse.che.api.workspace.server.WorkspaceKeyValidator.validateKey;
 import static org.eclipse.che.api.workspace.shared.Constants.CHE_WORKSPACE_AUTO_START;
 import static org.eclipse.che.api.workspace.shared.Constants.CHE_WORKSPACE_DEVFILE_REGISTRY_URL_PROPERTY;
-import static org.eclipse.che.api.workspace.shared.Constants.CHE_WORKSPACE_PERSIST_VOLUMES_PROPERTY;
 import static org.eclipse.che.api.workspace.shared.Constants.CHE_WORKSPACE_PLUGIN_REGISTRY_URL_PROPERTY;
+import static org.eclipse.che.api.workspace.shared.Constants.CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES;
+import static org.eclipse.che.api.workspace.shared.Constants.CHE_WORKSPACE_STORAGE_DEFAULT_TYPE;
 import static org.eclipse.che.api.workspace.shared.Constants.DEBUG_WORKSPACE_START;
 import static org.eclipse.che.api.workspace.shared.Constants.DEBUG_WORKSPACE_START_LOG_LIMIT_BYTES;
 import static org.eclipse.che.api.workspace.shared.Constants.WORKSPACE_INFRASTRUCTURE_NAMESPACE_ATTRIBUTE;
@@ -110,8 +111,9 @@ public class WorkspaceService extends Service {
   private final String apiEndpoint;
   private final boolean cheWorkspaceAutoStart;
   private final FileContentProvider devfileContentProvider;
-  private final boolean defaultPersistVolumes;
   private final Long logLimitBytes;
+  private final String supportedStorageTypes;
+  private final String defaultStorageType;
 
   @Inject
   public WorkspaceService(
@@ -122,9 +124,10 @@ public class WorkspaceService extends Service {
       WorkspaceLinksGenerator linksGenerator,
       @Named(CHE_WORKSPACE_PLUGIN_REGISTRY_URL_PROPERTY) @Nullable String pluginRegistryUrl,
       @Named(CHE_WORKSPACE_DEVFILE_REGISTRY_URL_PROPERTY) @Nullable String devfileRegistryUrl,
-      @Named(CHE_WORKSPACE_PERSIST_VOLUMES_PROPERTY) boolean defaultPersistVolumes,
       URLFetcher urlFetcher,
-      @Named(DEBUG_WORKSPACE_START_LOG_LIMIT_BYTES) Long logLimitBytes) {
+      @Named(DEBUG_WORKSPACE_START_LOG_LIMIT_BYTES) Long logLimitBytes,
+      @Named(CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES) @Nullable String supportedStorageTypes,
+      @Named(CHE_WORKSPACE_STORAGE_DEFAULT_TYPE) @Nullable String defaultStorageType) {
     this.apiEndpoint = apiEndpoint;
     this.cheWorkspaceAutoStart = cheWorkspaceAutoStart;
     this.workspaceManager = workspaceManager;
@@ -133,8 +136,9 @@ public class WorkspaceService extends Service {
     this.pluginRegistryUrl = pluginRegistryUrl;
     this.devfileRegistryUrl = devfileRegistryUrl;
     this.devfileContentProvider = new URLFileContentProvider(null, urlFetcher);
-    this.defaultPersistVolumes = defaultPersistVolumes;
     this.logLimitBytes = logLimitBytes;
+    this.supportedStorageTypes = supportedStorageTypes;
+    this.defaultStorageType = defaultStorageType;
   }
 
   @POST
@@ -319,7 +323,7 @@ public class WorkspaceService extends Service {
           @DefaultValue("false")
           @QueryParam("includeInternalServers")
           String includeInternalServers)
-      throws NotFoundException, ServerException, ForbiddenException, BadRequestException {
+      throws NotFoundException, ServerException, BadRequestException {
     validateKey(key);
     boolean bIncludeInternalServers =
         isNullOrEmpty(includeInternalServers) || Boolean.parseBoolean(includeInternalServers);
@@ -346,7 +350,7 @@ public class WorkspaceService extends Service {
           @QueryParam("maxItems")
           Integer maxItems,
       @ApiParam("Workspace status") @QueryParam("status") String status)
-      throws ServerException, BadRequestException {
+      throws ServerException {
     Page<WorkspaceImpl> workspacesPage =
         workspaceManager.getWorkspaces(
             EnvironmentContext.getCurrent().getSubject().getUserId(), false, maxItems, skipCount);
@@ -377,7 +381,7 @@ public class WorkspaceService extends Service {
   public List<WorkspaceDto> getByNamespace(
       @ApiParam("Workspace status") @QueryParam("status") String status,
       @ApiParam("The namespace") @PathParam("namespace") String namespace)
-      throws ServerException, BadRequestException {
+      throws ServerException {
     return asDtosWithLinks(
         Pages.stream(
                 (maxItems, skipCount) ->
@@ -407,8 +411,7 @@ public class WorkspaceService extends Service {
   public WorkspaceDto update(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam(value = "The workspace update", required = true) WorkspaceDto update)
-      throws BadRequestException, ServerException, ForbiddenException, NotFoundException,
-          ConflictException {
+      throws BadRequestException, ServerException, NotFoundException, ConflictException {
     checkArgument(
         update.getConfig() != null ^ update.getDevfile() != null,
         "Required non-null workspace configuration or devfile update but not both");
@@ -429,8 +432,7 @@ public class WorkspaceService extends Service {
     @ApiResponse(code = 500, message = "Internal server error occurred")
   })
   public void delete(@ApiParam("The workspace id") @PathParam("id") String id)
-      throws BadRequestException, ServerException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, ConflictException {
     workspaceManager.removeWorkspace(id);
   }
 
@@ -457,8 +459,7 @@ public class WorkspaceService extends Service {
           @QueryParam("environment")
           String envName,
       @QueryParam(DEBUG_WORKSPACE_START) @DefaultValue("false") Boolean debugWorkspaceStart)
-      throws ServerException, BadRequestException, NotFoundException, ForbiddenException,
-          ConflictException {
+      throws ServerException, NotFoundException, ConflictException {
 
     Map<String, String> options = new HashMap<>();
     if (debugWorkspaceStart) {
@@ -501,8 +502,7 @@ public class WorkspaceService extends Service {
           Boolean isTemporary,
       @ApiParam("Namespace where workspace should be created") @QueryParam("namespace")
           String namespace)
-      throws BadRequestException, ForbiddenException, NotFoundException, ServerException,
-          ConflictException {
+      throws BadRequestException, NotFoundException, ServerException, ConflictException {
     requiredNotNull(config, "Workspace configuration");
     relativizeRecipeLinks(config);
     if (namespace == null) {
@@ -532,7 +532,7 @@ public class WorkspaceService extends Service {
     @ApiResponse(code = 500, message = "Internal server error occurred")
   })
   public void stop(@ApiParam("The workspace id") @PathParam("id") String id)
-      throws ForbiddenException, NotFoundException, ServerException, ConflictException {
+      throws NotFoundException, ServerException, ConflictException {
     workspaceManager.stopWorkspace(id, emptyMap());
   }
 
@@ -554,8 +554,7 @@ public class WorkspaceService extends Service {
   public WorkspaceDto addCommand(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam(value = "The new workspace command", required = true) CommandDto newCommand)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     requiredNotNull(newCommand, "Command");
     WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -585,8 +584,7 @@ public class WorkspaceService extends Service {
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the command") @PathParam("name") String cmdName,
       @ApiParam(value = "The command update", required = true) CommandDto update)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     requiredNotNull(update, "Command update");
     WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -616,8 +614,7 @@ public class WorkspaceService extends Service {
   public void deleteCommand(
       @ApiParam("The id of the workspace") @PathParam("id") String id,
       @ApiParam("The name of the command to remove") @PathParam("name") String commandName)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
       throw new ConflictException(
@@ -651,8 +648,7 @@ public class WorkspaceService extends Service {
       @ApiParam(value = "The new environment", required = true) EnvironmentDto newEnvironment,
       @ApiParam(value = "The name of the environment", required = true) @QueryParam("name")
           String envName)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     requiredNotNull(newEnvironment, "New environment");
     requiredNotNull(envName, "New environment name");
     relativizeRecipeLinks(newEnvironment);
@@ -683,8 +679,7 @@ public class WorkspaceService extends Service {
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the environment") @PathParam("name") String envName,
       @ApiParam(value = "The environment update", required = true) EnvironmentDto update)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     requiredNotNull(update, "Environment description");
     relativizeRecipeLinks(update);
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
@@ -715,8 +710,7 @@ public class WorkspaceService extends Service {
   public void deleteEnvironment(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the environment") @PathParam("name") String envName)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
       throw new ConflictException(
@@ -745,8 +739,7 @@ public class WorkspaceService extends Service {
   public WorkspaceDto addProject(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam(value = "The new project", required = true) ProjectConfigDto newProject)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     requiredNotNull(newProject, "New project config");
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -775,8 +768,7 @@ public class WorkspaceService extends Service {
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The path to the project") @PathParam("path") String path,
       @ApiParam(value = "The project update", required = true) ProjectConfigDto update)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     requiredNotNull(update, "Project config");
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -807,8 +799,7 @@ public class WorkspaceService extends Service {
   public void deleteProject(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the project to remove") @PathParam("path") String path)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException,
-          ForbiddenException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException {
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
       throw new ConflictException(
@@ -844,7 +835,13 @@ public class WorkspaceService extends Service {
       settings.put("cheWorkspaceDevfileRegistryUrl", devfileRegistryUrl);
     }
 
-    settings.put(CHE_WORKSPACE_PERSIST_VOLUMES_PROPERTY, Boolean.toString(defaultPersistVolumes));
+    if (supportedStorageTypes != null) {
+      settings.put(CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES, supportedStorageTypes);
+    }
+
+    if (defaultStorageType != null) {
+      settings.put(CHE_WORKSPACE_STORAGE_DEFAULT_TYPE, defaultStorageType);
+    }
 
     return settings.build();
   }
