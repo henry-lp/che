@@ -42,7 +42,7 @@ public final class Constants {
   public static final String CHE_WORKSPACE_AUTO_START = "che.workspace.auto_start";
 
   /**
-   * The configuration property that defines a available values for storage types that clients like
+   * The configuration property that defines available values for storage types that clients like
    * Dashboard should propose for users during workspace creation/update.
    */
   public static final String CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES =
