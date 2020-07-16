@@ -323,7 +323,7 @@ public class WorkspaceService extends Service {
           @DefaultValue("false")
           @QueryParam("includeInternalServers")
           String includeInternalServers)
-      throws NotFoundException, ServerException, BadRequestException {
+      throws NotFoundException, ServerException, ForbiddenException, BadRequestException {
     validateKey(key);
     boolean bIncludeInternalServers =
         isNullOrEmpty(includeInternalServers) || Boolean.parseBoolean(includeInternalServers);
@@ -350,7 +350,7 @@ public class WorkspaceService extends Service {
           @QueryParam("maxItems")
           Integer maxItems,
       @ApiParam("Workspace status") @QueryParam("status") String status)
-      throws ServerException {
+      throws ServerException, BadRequestException {
     Page<WorkspaceImpl> workspacesPage =
         workspaceManager.getWorkspaces(
             EnvironmentContext.getCurrent().getSubject().getUserId(), false, maxItems, skipCount);
@@ -381,7 +381,7 @@ public class WorkspaceService extends Service {
   public List<WorkspaceDto> getByNamespace(
       @ApiParam("Workspace status") @QueryParam("status") String status,
       @ApiParam("The namespace") @PathParam("namespace") String namespace)
-      throws ServerException {
+      throws ServerException, BadRequestException {
     return asDtosWithLinks(
         Pages.stream(
                 (maxItems, skipCount) ->
@@ -411,7 +411,8 @@ public class WorkspaceService extends Service {
   public WorkspaceDto update(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam(value = "The workspace update", required = true) WorkspaceDto update)
-      throws BadRequestException, ServerException, NotFoundException, ConflictException {
+      throws BadRequestException, ServerException, ForbiddenException, NotFoundException,
+          ConflictException {
     checkArgument(
         update.getConfig() != null ^ update.getDevfile() != null,
         "Required non-null workspace configuration or devfile update but not both");
@@ -432,7 +433,8 @@ public class WorkspaceService extends Service {
     @ApiResponse(code = 500, message = "Internal server error occurred")
   })
   public void delete(@ApiParam("The workspace id") @PathParam("id") String id)
-      throws ServerException, ConflictException {
+      throws BadRequestException, ServerException, NotFoundException, ConflictException,
+          ForbiddenException {
     workspaceManager.removeWorkspace(id);
   }
 
@@ -459,7 +461,8 @@ public class WorkspaceService extends Service {
           @QueryParam("environment")
           String envName,
       @QueryParam(DEBUG_WORKSPACE_START) @DefaultValue("false") Boolean debugWorkspaceStart)
-      throws ServerException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ForbiddenException,
+          ConflictException {
 
     Map<String, String> options = new HashMap<>();
     if (debugWorkspaceStart) {
@@ -502,7 +505,8 @@ public class WorkspaceService extends Service {
           Boolean isTemporary,
       @ApiParam("Namespace where workspace should be created") @QueryParam("namespace")
           String namespace)
-      throws BadRequestException, NotFoundException, ServerException, ConflictException {
+      throws BadRequestException, ForbiddenException, NotFoundException, ServerException,
+          ConflictException {
     requiredNotNull(config, "Workspace configuration");
     relativizeRecipeLinks(config);
     if (namespace == null) {
@@ -532,7 +536,7 @@ public class WorkspaceService extends Service {
     @ApiResponse(code = 500, message = "Internal server error occurred")
   })
   public void stop(@ApiParam("The workspace id") @PathParam("id") String id)
-      throws NotFoundException, ServerException, ConflictException {
+      throws ForbiddenException, NotFoundException, ServerException, ConflictException {
     workspaceManager.stopWorkspace(id, emptyMap());
   }
 
@@ -554,7 +558,8 @@ public class WorkspaceService extends Service {
   public WorkspaceDto addCommand(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam(value = "The new workspace command", required = true) CommandDto newCommand)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     requiredNotNull(newCommand, "Command");
     WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -584,7 +589,8 @@ public class WorkspaceService extends Service {
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the command") @PathParam("name") String cmdName,
       @ApiParam(value = "The command update", required = true) CommandDto update)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     requiredNotNull(update, "Command update");
     WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -614,7 +620,8 @@ public class WorkspaceService extends Service {
   public void deleteCommand(
       @ApiParam("The id of the workspace") @PathParam("id") String id,
       @ApiParam("The name of the command to remove") @PathParam("name") String commandName)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
       throw new ConflictException(
@@ -648,7 +655,8 @@ public class WorkspaceService extends Service {
       @ApiParam(value = "The new environment", required = true) EnvironmentDto newEnvironment,
       @ApiParam(value = "The name of the environment", required = true) @QueryParam("name")
           String envName)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     requiredNotNull(newEnvironment, "New environment");
     requiredNotNull(envName, "New environment name");
     relativizeRecipeLinks(newEnvironment);
@@ -679,7 +687,8 @@ public class WorkspaceService extends Service {
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the environment") @PathParam("name") String envName,
       @ApiParam(value = "The environment update", required = true) EnvironmentDto update)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     requiredNotNull(update, "Environment description");
     relativizeRecipeLinks(update);
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
@@ -710,7 +719,8 @@ public class WorkspaceService extends Service {
   public void deleteEnvironment(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the environment") @PathParam("name") String envName)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
       throw new ConflictException(
@@ -739,7 +749,8 @@ public class WorkspaceService extends Service {
   public WorkspaceDto addProject(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam(value = "The new project", required = true) ProjectConfigDto newProject)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     requiredNotNull(newProject, "New project config");
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -768,7 +779,8 @@ public class WorkspaceService extends Service {
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The path to the project") @PathParam("path") String path,
       @ApiParam(value = "The project update", required = true) ProjectConfigDto update)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     requiredNotNull(update, "Project config");
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
@@ -799,7 +811,8 @@ public class WorkspaceService extends Service {
   public void deleteProject(
       @ApiParam("The workspace id") @PathParam("id") String id,
       @ApiParam("The name of the project to remove") @PathParam("path") String path)
-      throws ServerException, BadRequestException, NotFoundException, ConflictException {
+      throws ServerException, BadRequestException, NotFoundException, ConflictException,
+          ForbiddenException {
     final WorkspaceImpl workspace = workspaceManager.getWorkspace(id);
     if (workspace.getConfig() == null) {
       throw new ConflictException(
