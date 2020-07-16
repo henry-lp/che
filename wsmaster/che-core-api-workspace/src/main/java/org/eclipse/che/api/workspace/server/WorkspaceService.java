@@ -112,7 +112,7 @@ public class WorkspaceService extends Service {
   private final boolean cheWorkspaceAutoStart;
   private final FileContentProvider devfileContentProvider;
   private final Long logLimitBytes;
-  private final String supportedStorageTypes;
+  private final String availableStorageTypes;
   private final String defaultStorageType;
 
   @Inject
@@ -126,7 +126,7 @@ public class WorkspaceService extends Service {
       @Named(CHE_WORKSPACE_DEVFILE_REGISTRY_URL_PROPERTY) @Nullable String devfileRegistryUrl,
       URLFetcher urlFetcher,
       @Named(DEBUG_WORKSPACE_START_LOG_LIMIT_BYTES) Long logLimitBytes,
-      @Named(CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES) @Nullable String supportedStorageTypes,
+      @Named(CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES) @Nullable String availableStorageTypes,
       @Named(CHE_WORKSPACE_STORAGE_DEFAULT_TYPE) @Nullable String defaultStorageType) {
     this.apiEndpoint = apiEndpoint;
     this.cheWorkspaceAutoStart = cheWorkspaceAutoStart;
@@ -137,7 +137,7 @@ public class WorkspaceService extends Service {
     this.devfileRegistryUrl = devfileRegistryUrl;
     this.devfileContentProvider = new URLFileContentProvider(null, urlFetcher);
     this.logLimitBytes = logLimitBytes;
-    this.supportedStorageTypes = supportedStorageTypes;
+    this.availableStorageTypes = availableStorageTypes;
     this.defaultStorageType = defaultStorageType;
   }
 
@@ -835,8 +835,8 @@ public class WorkspaceService extends Service {
       settings.put("cheWorkspaceDevfileRegistryUrl", devfileRegistryUrl);
     }
 
-    if (supportedStorageTypes != null) {
-      settings.put(CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES, supportedStorageTypes);
+    if (availableStorageTypes != null) {
+      settings.put(CHE_WORKSPACE_STORAGE_AVAILABLE_TYPES, availableStorageTypes);
     }
 
     if (defaultStorageType != null) {
