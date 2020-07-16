@@ -135,6 +135,7 @@ public class WorkspaceServiceTest {
 
   @SuppressWarnings("unused")
   private static final EnvironmentFilter FILTER = new EnvironmentFilter();
+
   private final String availableStorageTypes = "persistent,ephemeral,async";
   private final String defaultStorageType = "persistent";
 
