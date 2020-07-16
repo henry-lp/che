@@ -23,7 +23,7 @@ public class KubernetesSize {
 
   // si system multipliers
   private static final int K = 1000;
-  private static final long M = K * K;
+  private static final long M = (long) org.eclipse.che.workspace.infrastructure.kubernetes.util.KubernetesSize.K * K;
   private static final long G = M * K;
   private static final long T = G * K;
   private static final long P = T * K;
